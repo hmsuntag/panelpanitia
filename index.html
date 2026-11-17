@@ -295,7 +295,6 @@
                     `<span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-semibold">Sudah Bayar</span>` : 
                     `<span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-[10px] font-semibold">Belum Bayar</span>`;
 
-                // Tombol toggle status konfirmasi panitia
                 let isConfirmed = item.statusKonfirmasi === true;
                 let confirmBtnHtml = isConfirmed ?
                     `<button onclick='toggleKonfirmasi("${currentCategory}", "${key}", false)' class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-[11px] font-semibold transition flex items-center gap-1 mx-auto cursor-pointer">
@@ -326,7 +325,6 @@
             });
         }
 
-        // Fungsi untuk mengubah status konfirmasi di Firebase
         function toggleKonfirmasi(cat, key, newStatus) {
             rtdb.ref(`pendaftaran_lomba/${cat}/${key}`).update({
                 statusKonfirmasi: newStatus
@@ -338,19 +336,39 @@
             });
         }
 
-        function filterTable() {
-            renderTable();
+        // Fungsi Hapus dengan Peringatan Ganda Jika Sudah Membayar
+        function deleteRegistration(cat, key, name) {
+            const item = allData[cat][key];
+            const isPaid = !!item.buktiPembayaran;
+
+            let confirmMessage = `Apakah Anda yakin ingin menghapus pendaftaran untuk "${name}"?`;
+            
+            if (isPaid) {
+                confirmMessage = `⚠️ PERINGATAN KERAS: Peserta "${name}" (Kategori: ${cat.toUpperCase()}) STATUSNYA SUDAH MEMBAYAR!\n\nApakah Anda benar-benar yakin ingin menghapus data ini secara permanen? Data pembayaran yang sudah masuk akan hilang dari sistem!`;
+            }
+
+            if (confirm(confirmMessage)) {
+                if (isPaid) {
+                    let doubleCheck = prompt(`Ketik "HAPUS" untuk mengonfirmasi penghapusan data peserta yang sudah membayar ini:`);
+                    if (doubleCheck !== "HAPUS") {
+                        alert("Penghapusan dibatalkan.");
+                        return;
+                    }
+                }
+
+                rtdb.ref(`pendaftaran_lomba/${cat}/${key}`).remove()
+                    .then(() => {
+                        alert("Data pendaftaran berhasil dihapus.");
+                    })
+                    .catch((err) => {
+                        console.error("Gagal menghapus data:", err);
+                        alert("Gagal menghapus data dari database.");
+                    });
+            }
         }
 
-        function formatWhatsAppNumber(rawPhone) {
-            if (!rawPhone) return '';
-            let cleaned = String(rawPhone).replace(/\D/g, '');
-            if (cleaned.startsWith('0')) {
-                cleaned = '62' + cleaned.slice(1);
-            } else if (cleaned.startsWith('8')) {
-                cleaned = '62' + cleaned;
-            }
-            return cleaned;
+        function filterTable() {
+            renderTable();
         }
 
         function showDetail(cat, key) {
@@ -358,25 +376,12 @@
             const modalContent = document.getElementById('modalContent');
             let html = '';
 
-            let rawPhone = item.whatsapp || item.wa || item.pemain1?.wa || '';
-            let phoneWa = formatWhatsAppNumber(rawPhone);
+            let phoneWa = item.whatsapp || item.wa || item.pemain1?.wa || '';
             let teamName = item.namaTim || item.nama || 'Peserta';
-            
-            const waBtn = document.getElementById('modalWaBtn');
-            if (phoneWa) {
-                let waMessage = `Halo ${teamName}, pendaftaran Anda di Lomba Dies Natalis HMS UNTAG Samarinda telah diverifikasi dan dikonfirmasi oleh Panitia. Terima kasih!`;
-                
-                // Menggunakan format API WhatsApp yang stabil di HP maupun Laptop
-                let waUrl = `https://api.whatsapp.com/send?phone=${phoneWa}&text=${encodeURIComponent(waMessage)}`;
-                
-                waBtn.setAttribute('onclick', `window.open('${waUrl}', '_blank')`);
-                waBtn.disabled = false;
-                waBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-xl transition text-xs flex items-center gap-1.5 cursor-pointer";
-            } else {
-                waBtn.setAttribute('onclick', `alert('Nomor WhatsApp tidak tersedia untuk peserta ini.')`);
-                waBtn.disabled = true;
-                waBtn.className = "bg-slate-700 text-slate-400 font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-not-allowed";
-            }
+            let waMessage = `Halo ${teamName}, pendaftaran Anda di Lomba Dies Natalis HMS UNTAG Samarinda telah diverifikasi dan dikonfirmasi oleh Panitia. Terima kasih!`;
+            let waUrl = `https://wa.me/${phoneWa}?text=${encodeURIComponent(waMessage)}`;
+
+            document.getElementById('modalWaBtn').setAttribute('onclick', `window.open('${waUrl}', '_blank')`);
 
             let buktiHtml = item.buktiPembayaran ? 
                 `<div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
@@ -462,19 +467,6 @@
 
         function closeImageModal() {
             document.getElementById('imageModal').classList.add('hidden');
-        }
-
-        function deleteRegistration(cat, key, name) {
-            if (confirm(`Apakah Anda yakin ingin menghapus pendaftaran untuk "${name}"?`)) {
-                rtdb.ref(`pendaftaran_lomba/${cat}/${key}`).remove()
-                    .then(() => {
-                        alert("Data pendaftaran berhasil dihapus.");
-                    })
-                    .catch((err) => {
-                        console.error("Gagal menghapus data:", err);
-                        alert("Gagal menghapus data dari database.");
-                    });
-            }
         }
 
         function closeModal() {
